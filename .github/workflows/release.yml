@@ -92,7 +92,7 @@ jobs:
         shell: bash
         run: |
           gh release upload "${{ github.ref_name }}" \
-            "src-tauri/target/release/GodotHub.exe" \
+            "src-tauri/target/release/tauri-app.exe" \
             --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
