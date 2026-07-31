@@ -1,11 +1,13 @@
 import { useState } from "react";
 import reactLogo from "./assets/react.svg";
 import { invoke } from "@tauri-apps/api/core";
+import { UpdateChecker } from "./UpdateChecker";
 import "./App.css";
 
 function App() {
   const [greetMsg, setGreetMsg] = useState("");
   const [name, setName] = useState("");
+  const [showUpdates, setShowUpdates] = useState(false);
 
   async function greet() {
     // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -15,6 +17,12 @@ function App() {
   return (
     <main className="container">
       <h1>Welcome to Tauri + React</h1>
+
+      <div className="row">
+        <button type="button" onClick={() => setShowUpdates(true)}>
+          Check for updates
+        </button>
+      </div>
 
       <div className="row">
         <a href="https://vite.dev" target="_blank">
@@ -44,6 +52,8 @@ function App() {
         <button type="submit">Greet</button>
       </form>
       <p>{greetMsg}</p>
+
+      {showUpdates && <UpdateChecker onClose={() => setShowUpdates(false)} />}
     </main>
   );
 }
