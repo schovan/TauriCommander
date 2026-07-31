@@ -5,10 +5,20 @@ interface Props {
   setShowHidden: (value: boolean) => void;
   editorPath: string;
   setEditorPath: (value: string) => void;
+  startMaximized: boolean;
+  setStartMaximized: (value: boolean) => void;
   onBack: () => void;
 }
 
-export function Settings({ showHidden, setShowHidden, editorPath, setEditorPath, onBack }: Props) {
+export function Settings({
+  showHidden,
+  setShowHidden,
+  editorPath,
+  setEditorPath,
+  startMaximized,
+  setStartMaximized,
+  onBack,
+}: Props) {
   const browse = async () => {
     const picked = await open({
       multiple: false,
@@ -28,6 +38,17 @@ export function Settings({ showHidden, setShowHidden, editorPath, setEditorPath,
             onChange={(e) => setShowHidden(e.target.checked)}
           />
           Show hidden / system files
+        </label>
+      </div>
+
+      <div className="settings-row">
+        <label className="settings-check">
+          <input
+            type="checkbox"
+            checked={startMaximized}
+            onChange={(e) => setStartMaximized(e.target.checked)}
+          />
+          Start maximized
         </label>
       </div>
 

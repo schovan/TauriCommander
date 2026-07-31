@@ -110,6 +110,53 @@ select {
   padding: 0.2em 0.6em;
 }
 
+.pane-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px 2px 0;
+  overflow-x: auto;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.pane-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.5rem;
+  max-width: 12rem;
+  font-size: 0.8em;
+  white-space: nowrap;
+  border-radius: 5px 5px 0 0;
+  background: rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  user-select: none;
+}
+
+.pane-tab:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.pane-tab.active {
+  background: #396cd8;
+  color: #ffffff;
+}
+
+.pane-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pane-tab-close {
+  flex-shrink: 0;
+  opacity: 0.6;
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.pane-tab-close:hover {
+  opacity: 1;
+}
+
 .pane-path {
   padding: 0.3rem 0.5rem;
   font-size: 0.85em;
@@ -200,6 +247,29 @@ select {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.entry-icon {
+  position: relative;
+  display: inline-block;
+}
+
+.entry-icon.dimmed {
+  opacity: 0.4;
+}
+
+.entry-sys {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e01414;
+  font-weight: 900;
+  font-size: 0.8em;
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 0 0 2px #fff, 0 0 3px #fff;
 }
 
 .col-ext {
@@ -563,6 +633,14 @@ select {
 
   .pane-row:hover {
     background: rgba(255, 255, 255, 0.08);
+  }
+
+  .pane-tab {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .pane-tab:hover {
+    background: rgba(255, 255, 255, 0.15);
   }
 
   .lister {

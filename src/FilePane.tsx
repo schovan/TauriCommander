@@ -6,6 +6,8 @@ export interface Entry {
   is_dir: boolean;
   size: number;
   modified: number | null;
+  hidden: boolean;
+  system: boolean;
 }
 
 export type SortKey = "name" | "ext" | "size" | "date";
@@ -40,6 +42,11 @@ function formatDate(secs: number | null): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+function tabLabel(p: string): string {
+  const parts = p.split(/[\\/]/).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : p;
+}
+
 interface Props {
   active: boolean;
   drives: string[];
@@ -53,6 +60,10 @@ interface Props {
   sortKey: SortKey;
   sortAsc: boolean;
   onSort: (key: SortKey) => void;
+  tabs: string[];
+  activeTab: number;
+  onTabSelect: (index: number) => void;
+  onTabClose: (index: number) => void;
   onActivate: () => void;
   onDriveChange: (drive: string) => void;
   onRowClick: (row: number) => void;
@@ -101,6 +112,39 @@ export function FilePane(props: Props) {
           </button>
         )}
       </div>
+
+      {props.tabs.length > 1 && (
+        <div className="pane-tabs">
+          {props.tabs.map((t, i) => (
+            <div
+              key={i}
+              className={`pane-tab${i === props.activeTab ? " active" : ""}`}
+              title={t}
+              onMouseDown={(e) => {
+                if (e.button === 1) {
+                  e.preventDefault();
+                  props.onTabClose(i);
+                } else {
+                  props.onTabSelect(i);
+                }
+              }}
+            >
+              <span className="pane-tab-label">{tabLabel(t)}</span>
+              <span
+                className="pane-tab-close"
+                title="Close tab"
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  props.onTabClose(i);
+                }}
+              >
+                ×
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {props.editing ? (
         <input
@@ -169,7 +213,11 @@ export function FilePane(props: Props) {
               }}
             >
               <span className="col-name">
-                {entry.is_dir ? "📁" : "📄"} {base}
+                <span className={`entry-icon${entry.hidden ? " dimmed" : ""}`}>
+                  {entry.is_dir ? "📁" : "📄"}
+                  {entry.system && <span className="entry-sys">!</span>}
+                </span>{" "}
+                {base}
               </span>
               <span className="col-ext">{ext}</span>
               <span className="col-size">{entry.is_dir ? "<DIR>" : formatSize(entry.size)}</span>

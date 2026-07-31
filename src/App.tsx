@@ -31,13 +31,19 @@ function sortEntries(entries: Entry[], key: SortKey, asc: boolean): Entry[] {
 function useSettings() {
   const [showHidden, setShowHidden] = useState(() => localStorage.getItem("showHidden") === "1");
   const [editorPath, setEditorPath] = useState(() => localStorage.getItem("editorPath") ?? "");
+  const [startMaximized, setStartMaximized] = useState(
+    () => localStorage.getItem("startMaximized") === "1",
+  );
   useEffect(() => {
     localStorage.setItem("showHidden", showHidden ? "1" : "0");
   }, [showHidden]);
   useEffect(() => {
     localStorage.setItem("editorPath", editorPath);
   }, [editorPath]);
-  return { showHidden, setShowHidden, editorPath, setEditorPath };
+  useEffect(() => {
+    localStorage.setItem("startMaximized", startMaximized ? "1" : "0");
+  }, [startMaximized]);
+  return { showHidden, setShowHidden, editorPath, setEditorPath, startMaximized, setStartMaximized };
 }
 
 function usePane(showHidden: boolean) {
@@ -50,6 +56,10 @@ function usePane(showHidden: boolean) {
   const [editing, setEditing] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortAsc, setSortAsc] = useState(true);
+  const [tabs, setTabs] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState(0);
+  const activeTabRef = useRef(0);
+  activeTabRef.current = activeTab;
 
   const entries = useMemo(() => sortEntries(rawEntries, sortKey, sortAsc), [rawEntries, sortKey, sortAsc]);
 
@@ -68,6 +78,14 @@ function usePane(showHidden: boolean) {
         setRawEntries([]);
         setPath(target);
       }
+      // Keep the active tab pointed at the folder we just navigated to.
+      setTabs((t) => {
+        if (t.length === 0) return [target];
+        if (t[activeTabRef.current] === target) return t;
+        const n = [...t];
+        n[activeTabRef.current] = target;
+        return n;
+      });
     },
     [showHidden],
   );
@@ -80,10 +98,43 @@ function usePane(showHidden: boolean) {
     }
   };
 
+  // Ctrl+T: duplicate the current folder into a new tab right after the current one.
+  const newTab = () => {
+    const dup = path;
+    setTabs((t) => {
+      const base = t.length ? t : [path];
+      const idx = Math.min(activeTab, base.length - 1);
+      return [...base.slice(0, idx + 1), dup, ...base.slice(idx + 1)];
+    });
+    const next = activeTab + 1;
+    activeTabRef.current = next;
+    setActiveTab(next);
+  };
+
+  const switchTab = (i: number) => {
+    if (i === activeTab || i < 0 || i >= tabs.length) return;
+    activeTabRef.current = i;
+    setActiveTab(i);
+    load(tabs[i]);
+  };
+
+  const closeTab = (i: number) => {
+    if (tabs.length <= 1) return;
+    const next = tabs.filter((_, j) => j !== i);
+    setTabs(next);
+    let na = activeTab;
+    if (i < activeTab) na = activeTab - 1;
+    else if (i === activeTab) na = Math.min(activeTab, next.length - 1);
+    activeTabRef.current = na;
+    setActiveTab(na);
+    if (i === activeTab) load(next[na]);
+  };
+
   return {
     drive, setDrive, path, setPath, entries,
     cursor, setCursor, marked, setMarked, error, setError,
     editing, setEditing, sortKey, sortAsc, toggleSort, load,
+    tabs, activeTab, newTab, switchTab, closeTab,
   };
 }
 
@@ -114,6 +165,10 @@ function App() {
 
   useEffect(() => {
     invoke<string[]>("list_drives").then(setDrives).catch(() => setDrives([]));
+    if (settings.startMaximized) {
+      getCurrentWindow().maximize().catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -304,6 +359,21 @@ function App() {
       }
       if (s.dialog || s.showUpdates || s.lister || s.alert || s.view !== "files") return;
       const pane = s.active;
+      if (e.ctrlKey && (e.key === "t" || e.key === "T")) {
+        e.preventDefault();
+        pane.newTab();
+        return;
+      }
+      if (e.ctrlKey && (e.key === "w" || e.key === "W")) {
+        e.preventDefault();
+        pane.closeTab(pane.activeTab);
+        return;
+      }
+      if (e.ctrlKey && e.key === "Tab") {
+        e.preventDefault();
+        if (pane.tabs.length > 1) pane.switchTab((pane.activeTab + 1) % pane.tabs.length);
+        return;
+      }
       switch (e.key) {
         case "Tab":
           e.preventDefault();
@@ -376,6 +446,13 @@ function App() {
         sortKey={pane.sortKey}
         sortAsc={pane.sortAsc}
         onSort={pane.toggleSort}
+        tabs={pane.tabs}
+        activeTab={pane.activeTab}
+        onTabSelect={(i) => {
+          setActiveSide(side);
+          pane.switchTab(i);
+        }}
+        onTabClose={(i) => pane.closeTab(i)}
         onActivate={() => setActiveSide(side)}
         onDriveChange={(d) => {
           setActiveSide(side);

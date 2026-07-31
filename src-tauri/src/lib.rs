@@ -10,14 +10,20 @@ struct DirEntry {
     is_dir: bool,
     size: u64,
     modified: Option<u64>,
+    hidden: bool,
+    system: bool,
 }
 
 #[cfg(windows)]
-fn is_hidden(meta: &fs::Metadata) -> bool {
+fn win_flags(meta: &fs::Metadata) -> (bool, bool) {
     use std::os::windows::fs::MetadataExt;
     const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
     const FILE_ATTRIBUTE_SYSTEM: u32 = 0x4;
-    meta.file_attributes() & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM) != 0
+    let attrs = meta.file_attributes();
+    (
+        attrs & FILE_ATTRIBUTE_HIDDEN != 0,
+        attrs & FILE_ATTRIBUTE_SYSTEM != 0,
+    )
 }
 
 #[tauri::command]
@@ -50,15 +56,13 @@ fn read_dir(path: String, show_hidden: bool) -> Result<Vec<DirEntry>, String> {
         };
         let name = entry.file_name().to_string_lossy().into_owned();
 
-        if !show_hidden {
-            #[cfg(windows)]
-            if is_hidden(&meta) {
-                continue;
-            }
-            #[cfg(not(windows))]
-            if name.starts_with('.') {
-                continue;
-            }
+        #[cfg(windows)]
+        let (hidden, system) = win_flags(&meta);
+        #[cfg(not(windows))]
+        let (hidden, system) = (name.starts_with('.'), false);
+
+        if !show_hidden && (hidden || system) {
+            continue;
         }
 
         let is_dir = meta.is_dir();
@@ -73,6 +77,8 @@ fn read_dir(path: String, show_hidden: bool) -> Result<Vec<DirEntry>, String> {
             is_dir,
             size: if is_dir { 0 } else { meta.len() },
             modified,
+            hidden,
+            system,
         });
     }
     entries.sort_by(|a, b| {
