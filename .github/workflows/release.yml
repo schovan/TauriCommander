@@ -83,7 +83,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'GodotHub ${{ github.ref_name }}'
           releaseBody: 'See the assets below for the installer and updater files for your platform.'
-          releaseDraft: true
+          releaseDraft: false
           uploadUpdaterJson: true
           updaterJsonPreferNsis: true
 
