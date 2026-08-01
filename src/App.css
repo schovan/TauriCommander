@@ -106,10 +106,6 @@ select {
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-.pane-up {
-  padding: 0.2em 0.6em;
-}
-
 .pane-tabs {
   display: flex;
   gap: 2px;
@@ -280,6 +276,35 @@ select {
 .entry-icon {
   position: relative;
   display: inline-block;
+}
+
+.entry-link-arrow {
+  position: absolute;
+  right: -0.15em;
+  bottom: 0;
+  width: 0.95rem;
+  height: 0.95rem;
+  pointer-events: none;
+}
+
+.entry-link-arrow svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.entry-link-arrow rect {
+  fill: #e6e6e6;
+  stroke: #727272;
+  stroke-width: 1;
+}
+
+.entry-link-arrow path {
+  fill: none;
+  stroke: #111;
+  stroke-width: 1.8;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
 }
 
 .entry-icon.dimmed {
@@ -553,6 +578,12 @@ select {
 
 .settings-row {
   margin-bottom: 1.25rem;
+}
+
+.settings-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
 }
 
 .settings-check {

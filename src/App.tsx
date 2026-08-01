@@ -93,9 +93,15 @@ function sortEntries(entries: Entry[], key: SortKey, asc: boolean): Entry[] {
     if (r === 0) r = byName(a, b);
     return r * dir;
   };
-  const dirs = entries.filter((e) => e.is_dir).sort(cmp);
+  const dirs = entries.filter((e) => e.is_dir).sort(byName);
   const files = entries.filter((e) => !e.is_dir).sort(cmp);
   return [...dirs, ...files];
+}
+
+function lastPathName(path: string): string {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  const separator = Math.max(trimmed.lastIndexOf("\\"), trimmed.lastIndexOf("/"));
+  return separator >= 0 ? trimmed.slice(separator + 1) : trimmed;
 }
 
 function wildcardToRegex(mask: string): RegExp {
@@ -120,6 +126,10 @@ function matchesMask(name: string, mask: string): boolean {
 
 function useSettings() {
   const [showHidden, setShowHidden] = useState(() => localStorage.getItem("showHidden") === "1");
+  const [showSystem, setShowSystem] = useState(() => {
+    const saved = localStorage.getItem("showSystem");
+    return saved === null ? localStorage.getItem("showHidden") === "1" : saved === "1";
+  });
   const [showExtensions, setShowExtensions] = useState(
     () => localStorage.getItem("showExtensions") === "1",
   );
@@ -130,6 +140,9 @@ function useSettings() {
   useEffect(() => {
     localStorage.setItem("showHidden", showHidden ? "1" : "0");
   }, [showHidden]);
+  useEffect(() => {
+    localStorage.setItem("showSystem", showSystem ? "1" : "0");
+  }, [showSystem]);
   useEffect(() => {
     localStorage.setItem("showExtensions", showExtensions ? "1" : "0");
   }, [showExtensions]);
@@ -142,6 +155,8 @@ function useSettings() {
   return {
     showHidden,
     setShowHidden,
+    showSystem,
+    setShowSystem,
     showExtensions,
     setShowExtensions,
     editorPath,
@@ -151,7 +166,7 @@ function useSettings() {
   };
 }
 
-function usePane(showHidden: boolean, storageKey: string) {
+function usePane(showHidden: boolean, showSystem: boolean, storageKey: string) {
   const persisted = useRef(readPaneState(storageKey)).current;
   const [drive, setDrive] = useState("");
   const [path, setPath] = useState("");
@@ -176,15 +191,26 @@ function usePane(showHidden: boolean, storageKey: string) {
   const entries = useMemo(() => sortEntries(rawEntries, sortKey, sortAsc), [rawEntries, sortKey, sortAsc]);
 
   const load = useCallback(
-    async (target: string, keepCursor = false) => {
+    async (target: string, keepCursor = false, selectName?: string) => {
       try {
-        const result = await invoke<Entry[]>("read_dir", { path: target, showHidden });
+        const result = await invoke<Entry[]>("read_dir", {
+          path: target,
+          showHidden,
+          showSystem,
+        });
         setRawEntries(result);
         setPath(target);
         setError(null);
         setMarked(new Set());
         setEditing(false);
-        setCursor((c) => (keepCursor ? Math.min(c, result.length) : 0));
+        const sorted = sortEntries(result, "name", true);
+        const selectedDirectory = selectName
+          ? sorted.findIndex((entry) => entry.is_dir && entry.name.toLowerCase() === selectName.toLowerCase())
+          : -1;
+        setCursor((c) => {
+          if (selectedDirectory >= 0) return selectedDirectory + (isRoot(target) ? 0 : 1);
+          return keepCursor ? Math.min(c, result.length) : 0;
+        });
       } catch (e) {
         setError(String(e));
         setRawEntries([]);
@@ -199,7 +225,7 @@ function usePane(showHidden: boolean, storageKey: string) {
         return n;
       });
     },
-    [showHidden],
+    [showHidden, showSystem],
   );
 
   const toggleSort = (key: SortKey) => {
@@ -275,7 +301,7 @@ type Pane = ReturnType<typeof usePane>;
 
 function App() {
   const settings = useSettings();
-  const { showHidden, showExtensions, editorPath } = settings;
+  const { showHidden, showSystem, showExtensions, editorPath } = settings;
   const [drives, setDrives] = useState<string[]>([]);
   const [activeSide, setActiveSide] = useState<Side>("left");
   const [view, setView] = useState<"files" | "settings">("files");
@@ -293,8 +319,8 @@ function App() {
   });
   const [histIdx, setHistIdx] = useState(-1);
   const [alert, setAlert] = useState<{ title: string; message: string } | null>(null);
-  const left = usePane(showHidden, "paneState:left");
-  const right = usePane(showHidden, "paneState:right");
+  const left = usePane(showHidden, showSystem, "paneState:left");
+  const right = usePane(showHidden, showSystem, "paneState:right");
   const inited = useRef(false);
 
   useEffect(() => {
@@ -319,14 +345,14 @@ function App() {
     }
   }, [drives, left, right]);
 
-  // Re-read both panes when the hidden-files setting changes.
+  // Re-read both panes when the hidden/system-files settings change.
   useEffect(() => {
     if (inited.current) {
       left.load(left.path, true);
       right.load(right.path, true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showHidden]);
+  }, [showHidden, showSystem]);
 
   const paneFor = (side: Side) => (side === "left" ? left : right);
   const active = paneFor(activeSide);
@@ -377,8 +403,9 @@ function App() {
 
   const goUp = async (side: Side) => {
     const pane = paneFor(side);
+    const previousDirectory = lastPathName(pane.path);
     const parent = await invoke<string | null>("parent_dir", { path: pane.path });
-    if (parent) pane.load(parent);
+    if (parent) pane.load(parent, false, previousDirectory);
   };
 
   const openRow = async (side: Side, row: number) => {
@@ -684,7 +711,6 @@ function App() {
         }}
         onRowContext={(row) => onContext(side, row)}
         onRowOpen={(row) => openRow(side, row)}
-        onUp={() => goUp(side)}
         onPathEditStart={() => {
           setActiveSide(side);
           pane.setEditing(true);

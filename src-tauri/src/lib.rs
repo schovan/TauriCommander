@@ -12,17 +12,20 @@ struct DirEntry {
     modified: Option<u64>,
     hidden: bool,
     system: bool,
+    is_junction: bool,
 }
 
 #[cfg(windows)]
-fn win_flags(meta: &fs::Metadata) -> (bool, bool) {
+fn win_flags(meta: &fs::Metadata) -> (bool, bool, bool) {
     use std::os::windows::fs::MetadataExt;
     const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
     const FILE_ATTRIBUTE_SYSTEM: u32 = 0x4;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
     let attrs = meta.file_attributes();
     (
         attrs & FILE_ATTRIBUTE_HIDDEN != 0,
         attrs & FILE_ATTRIBUTE_SYSTEM != 0,
+        attrs & FILE_ATTRIBUTE_REPARSE_POINT != 0,
     )
 }
 
@@ -43,13 +46,14 @@ fn list_drives() -> Vec<String> {
 }
 
 #[tauri::command]
-fn read_dir(path: String, show_hidden: bool) -> Result<Vec<DirEntry>, String> {
+fn read_dir(path: String, show_hidden: bool, show_system: bool) -> Result<Vec<DirEntry>, String> {
     let mut entries = Vec::new();
     for entry in fs::read_dir(&path).map_err(|e| e.to_string())? {
         let entry = match entry {
             Ok(e) => e,
             Err(_) => continue,
         };
+        let path = entry.path();
         let meta = match entry.metadata() {
             Ok(m) => m,
             Err(_) => continue,
@@ -57,15 +61,21 @@ fn read_dir(path: String, show_hidden: bool) -> Result<Vec<DirEntry>, String> {
         let name = entry.file_name().to_string_lossy().into_owned();
 
         #[cfg(windows)]
-        let (hidden, system) = win_flags(&meta);
+        let (hidden, system, is_junction) = match fs::symlink_metadata(&path) {
+            Ok(link_meta) => win_flags(&link_meta),
+            Err(_) => win_flags(&meta),
+        };
         #[cfg(not(windows))]
-        let (hidden, system) = (name.starts_with('.'), false);
+        let (hidden, system, is_junction) = (name.starts_with('.'), false, false);
 
-        if !show_hidden && (hidden || system) {
+        if !show_hidden && hidden {
+            continue;
+        }
+        if !show_system && system {
             continue;
         }
 
-        let is_dir = meta.is_dir();
+        let is_dir = meta.is_dir() || (is_junction && path.is_dir());
         let modified = meta
             .modified()
             .ok()
@@ -73,12 +83,13 @@ fn read_dir(path: String, show_hidden: bool) -> Result<Vec<DirEntry>, String> {
             .map(|d| d.as_secs());
         entries.push(DirEntry {
             name,
-            path: entry.path().to_string_lossy().into_owned(),
+            path: path.to_string_lossy().into_owned(),
             is_dir,
             size: if is_dir { 0 } else { meta.len() },
             modified,
             hidden,
             system,
+            is_junction,
         });
     }
     entries.sort_by(|a, b| {

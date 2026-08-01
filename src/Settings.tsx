@@ -3,6 +3,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 interface Props {
   showHidden: boolean;
   setShowHidden: (value: boolean) => void;
+  showSystem: boolean;
+  setShowSystem: (value: boolean) => void;
   showExtensions: boolean;
   setShowExtensions: (value: boolean) => void;
   editorPath: string;
@@ -15,6 +17,8 @@ interface Props {
 export function Settings({
   showHidden,
   setShowHidden,
+  showSystem,
+  setShowSystem,
   showExtensions,
   setShowExtensions,
   editorPath,
@@ -34,14 +38,22 @@ export function Settings({
 
   return (
     <div className="settings">
-      <div className="settings-row">
+      <div className="settings-row settings-inline">
         <label className="settings-check">
           <input
             type="checkbox"
             checked={showHidden}
             onChange={(e) => setShowHidden(e.target.checked)}
           />
-          Show hidden / system files
+          Show hidden files
+        </label>
+        <label className="settings-check">
+          <input
+            type="checkbox"
+            checked={showSystem}
+            onChange={(e) => setShowSystem(e.target.checked)}
+          />
+          Show system files
         </label>
       </div>
 

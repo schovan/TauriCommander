@@ -8,6 +8,7 @@ export interface Entry {
   modified: number | null;
   hidden: boolean;
   system: boolean;
+  is_junction: boolean;
 }
 
 export type SortKey = "name" | "ext" | "size" | "date";
@@ -77,7 +78,6 @@ interface Props {
   onRowClick: (row: number) => void;
   onRowContext: (row: number) => void;
   onRowOpen: (row: number) => void;
-  onUp: () => void;
   onPathEditStart: () => void;
   onPathSubmit: (value: string) => void;
   onPathCancel: () => void;
@@ -122,11 +122,6 @@ export function FilePane(props: Props) {
             </option>
           ))}
         </select>
-        {hasUp && (
-          <button type="button" className="pane-up" onClick={props.onUp} title="Up one level">
-            ⬆
-          </button>
-        )}
       </div>
 
       {props.tabs.length > 0 && (
@@ -231,6 +226,15 @@ export function FilePane(props: Props) {
               <span className="col-name">
                 <span className={`entry-icon${entry.hidden ? " dimmed" : ""}`}>
                   {entry.is_dir ? "📁" : "📄"}
+                  {entry.is_junction && (
+                    <span className="entry-link-arrow" title="Junction">
+                      <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <rect x="0.5" y="0.5" width="15" height="15" rx="1" />
+                        <path d="M4 12 12 4" />
+                        <path d="m9 4h3v3" />
+                      </svg>
+                    </span>
+                  )}
                   {entry.system && <span className="entry-sys">!</span>}
                 </span>{" "}
                 {displayName}
