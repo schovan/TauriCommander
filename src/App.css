@@ -195,7 +195,14 @@ select {
 
 .pane-header .col-size,
 .pane-header .col-date {
-  text-align: right;
+  text-align: left;
+}
+
+.sort-arrow {
+  display: inline-block;
+  width: 1em;
+  margin-right: 0.2em;
+  text-align: center;
 }
 
 .pane-list {

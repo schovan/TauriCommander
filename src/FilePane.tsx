@@ -94,7 +94,15 @@ export function FilePane(props: Props) {
     }
   }, [props.editing]);
 
-  const sortArrow = (key: SortKey) => (props.sortKey === key ? (props.sortAsc ? " ▲" : " ▼") : "");
+  const sortArrow = (key: SortKey) => (props.sortKey === key ? (props.sortAsc ? "▲" : "▼") : "");
+  const sortLabel = (key: SortKey, label: string) => (
+    <>
+      <span className="sort-arrow" aria-hidden="true">
+        {sortArrow(key)}
+      </span>
+      {label}
+    </>
+  );
 
   return (
     <div className={`pane${props.active ? " active" : ""}`} onMouseDown={props.onActivate}>
@@ -165,16 +173,16 @@ export function FilePane(props: Props) {
 
       <div className="pane-header">
         <button type="button" className="col-name" onClick={() => props.onSort("name")}>
-          Name{sortArrow("name")}
+          {sortLabel("name", "Name")}
         </button>
         <button type="button" className="col-ext" onClick={() => props.onSort("ext")}>
-          Ext{sortArrow("ext")}
+          {sortLabel("ext", "Ext")}
         </button>
         <button type="button" className="col-size" onClick={() => props.onSort("size")}>
-          Size{sortArrow("size")}
+          {sortLabel("size", "Size")}
         </button>
         <button type="button" className="col-date" onClick={() => props.onSort("date")}>
-          Date{sortArrow("date")}
+          {sortLabel("date", "Date")}
         </button>
       </div>
 

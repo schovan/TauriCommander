@@ -31,15 +31,15 @@ console.log(`Bumping version to ${version}`);
 replaceInFile("package.json", /("version":\s*")[^"]*(")/, `$1${version}$2`);
 replaceInFile("src-tauri/tauri.conf.json", /("version":\s*")[^"]*(")/, `$1${version}$2`);
 
-// Cargo.toml: the [package] version, anchored to the crate name
+// Cargo.toml: the [package] version, anchored to the project name
 replaceInFile(
   "src-tauri/Cargo.toml",
-  /(name = "tauri-app"\s*\nversion = ")[^"]*(")/,
+  /(name = "TauriCommander"\s*\nversion = ")[^"]*(")/,
   `$1${version}$2`,
 );
 
 console.log("Syncing Cargo.lock");
-execFileSync("cargo", ["update", "-p", "tauri-app", "--precise", version], {
+execFileSync("cargo", ["update", "-p", "TauriCommander", "--precise", version], {
   cwd: join(root, "src-tauri"),
   stdio: "inherit",
 });
@@ -52,4 +52,3 @@ git("tag", `v${version}`);
 git("push", "origin", "HEAD", "--tags");
 
 console.log(`\nDone. Commit and tag v${version} pushed — CI will build and publish the release.`);
-

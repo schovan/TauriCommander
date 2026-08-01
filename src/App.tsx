@@ -9,6 +9,35 @@ import "./App.css";
 
 type Side = "left" | "right";
 type Dialog = { type: "mkdir" } | { type: "delete"; items: Entry[] };
+type PaneState = {
+  sortKey?: SortKey;
+  sortAsc?: boolean;
+  tabs?: string[];
+  activeTab?: number;
+};
+
+const sortKeys: SortKey[] = ["name", "ext", "size", "date"];
+
+function readPaneState(storageKey: string): PaneState {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(storageKey) ?? "null");
+    if (!value || typeof value !== "object") return {};
+    const saved = value as Record<string, unknown>;
+    return {
+      sortKey: sortKeys.includes(saved.sortKey as SortKey) ? (saved.sortKey as SortKey) : undefined,
+      sortAsc: typeof saved.sortAsc === "boolean" ? saved.sortAsc : undefined,
+      tabs: Array.isArray(saved.tabs)
+        ? saved.tabs.filter((tab): tab is string => typeof tab === "string" && tab.length > 0)
+        : undefined,
+      activeTab:
+        typeof saved.activeTab === "number" && Number.isInteger(saved.activeTab)
+          ? Math.max(0, saved.activeTab)
+          : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
 
 function sortEntries(entries: Entry[], key: SortKey, asc: boolean): Entry[] {
   const dir = asc ? 1 : -1;
@@ -46,7 +75,8 @@ function useSettings() {
   return { showHidden, setShowHidden, editorPath, setEditorPath, startMaximized, setStartMaximized };
 }
 
-function usePane(showHidden: boolean) {
+function usePane(showHidden: boolean, storageKey: string) {
+  const persisted = useRef(readPaneState(storageKey)).current;
   const [drive, setDrive] = useState("");
   const [path, setPath] = useState("");
   const [rawEntries, setRawEntries] = useState<Entry[]>([]);
@@ -54,12 +84,18 @@ function usePane(showHidden: boolean) {
   const [marked, setMarked] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const [sortKey, setSortKey] = useState<SortKey>("name");
-  const [sortAsc, setSortAsc] = useState(true);
-  const [tabs, setTabs] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState(0);
+  const [sortKey, setSortKey] = useState<SortKey>(persisted.sortKey ?? "name");
+  const [sortAsc, setSortAsc] = useState(persisted.sortAsc ?? true);
+  const [tabs, setTabs] = useState<string[]>(persisted.tabs ?? []);
+  const [activeTab, setActiveTab] = useState(() =>
+    Math.min(persisted.activeTab ?? 0, Math.max((persisted.tabs?.length ?? 1) - 1, 0)),
+  );
   const activeTabRef = useRef(0);
   activeTabRef.current = activeTab;
+
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify({ sortKey, sortAsc, tabs, activeTab }));
+  }, [storageKey, sortKey, sortAsc, tabs, activeTab]);
 
   const entries = useMemo(() => sortEntries(rawEntries, sortKey, sortAsc), [rawEntries, sortKey, sortAsc]);
 
@@ -159,8 +195,8 @@ function App() {
   });
   const [histIdx, setHistIdx] = useState(-1);
   const [alert, setAlert] = useState<{ title: string; message: string } | null>(null);
-  const left = usePane(showHidden);
-  const right = usePane(showHidden);
+  const left = usePane(showHidden, "paneState:left");
+  const right = usePane(showHidden, "paneState:right");
   const inited = useRef(false);
 
   useEffect(() => {
@@ -174,10 +210,11 @@ function App() {
   useEffect(() => {
     if (drives.length && !inited.current) {
       inited.current = true;
+      const initialPath = (pane: Pane) => pane.tabs[pane.activeTab] || drives[0];
       left.setDrive(drives[0]);
-      left.load(drives[0]);
+      left.load(initialPath(left));
       right.setDrive(drives[0]);
-      right.load(drives[0]);
+      right.load(initialPath(right));
     }
   }, [drives, left, right]);
 
@@ -479,7 +516,7 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Total Commander</h1>
+        <h1>Tauri Commander</h1>
         <div className="app-header-actions">
           <button type="button" onClick={() => setView(view === "files" ? "settings" : "files")}>
             {view === "files" ? "⚙ Settings" : "← Files"}

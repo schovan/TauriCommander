@@ -1,4 +1,4 @@
-# Validates GodotHub on every push and pull request to main.
+# Validates Tauri Commander on every push and pull request to main.
 # Runs TypeScript typecheck, Rust cargo check, and Vite build.
 
 name: CI

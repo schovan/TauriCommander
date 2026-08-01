@@ -1,4 +1,4 @@
-# Builds GodotHub when a tag like v1.0.0 is pushed,
+# Builds Tauri Commander when a tag like v1.0.0 is pushed,
 # signs the updater artifacts, auto-generates latest.json,
 # and publishes a GitHub Release with installers and updater files.
 
@@ -81,7 +81,7 @@ jobs:
         with:
           args: ${{ matrix.args }}
           tagName: ${{ github.ref_name }}
-          releaseName: 'tauri-app ${{ github.ref_name }}'
+          releaseName: 'Tauri Commander ${{ github.ref_name }}'
           releaseBody: 'See the assets below for the installer and updater files for your platform.'
           releaseDraft: false
           uploadUpdaterJson: true
@@ -92,7 +92,7 @@ jobs:
         shell: bash
         run: |
           gh release upload "${{ github.ref_name }}" \
-            "src-tauri/target/release/tauri-app.exe" \
+            "src-tauri/target/release/TauriCommander.exe" \
             --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
