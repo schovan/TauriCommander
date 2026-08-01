@@ -37,15 +37,10 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
+            src-tauri/target
           key: ${{ runner.os }}-cargo-ci-${{ hashFiles('src-tauri/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-ci-
-
-      # Tauri-generated permission files contain absolute workspace paths.
-      # Never reuse target artifacts from another checkout location.
-      - name: Clear Tauri build artifacts
-        shell: pwsh
-        run: Remove-Item -LiteralPath src-tauri/target -Recurse -Force -ErrorAction SilentlyContinue
 
       - name: Install dependencies (Linux only)
         if: runner.os == 'Linux'
