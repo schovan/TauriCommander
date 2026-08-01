@@ -81,7 +81,7 @@ jobs:
         with:
           args: ${{ matrix.args }}
           tagName: ${{ github.ref_name }}
-          releaseName: 'GodotHub ${{ github.ref_name }}'
+          releaseName: 'tauri-app ${{ github.ref_name }}'
           releaseBody: 'See the assets below for the installer and updater files for your platform.'
           releaseDraft: false
           uploadUpdaterJson: true
