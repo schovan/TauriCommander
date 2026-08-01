@@ -12,6 +12,12 @@ export interface Entry {
 
 export type SortKey = "name" | "ext" | "size" | "date";
 
+export interface PaneTab {
+  path: string;
+  locked: boolean;
+  lockedPath?: string;
+}
+
 export function isRoot(p: string): boolean {
   return /^[A-Za-z]:[\\/]?$/.test(p) || p === "/" || p === "";
 }
@@ -60,9 +66,10 @@ interface Props {
   sortKey: SortKey;
   sortAsc: boolean;
   onSort: (key: SortKey) => void;
-  tabs: string[];
+  tabs: PaneTab[];
   activeTab: number;
   onTabSelect: (index: number) => void;
+  onTabContext: (index: number, x: number, y: number) => void;
   onTabClose: (index: number) => void;
   onActivate: () => void;
   onDriveChange: (drive: string) => void;
@@ -121,33 +128,32 @@ export function FilePane(props: Props) {
         )}
       </div>
 
-      {props.tabs.length > 1 && (
+      {props.tabs.length > 0 && (
         <div className="pane-tabs">
           {props.tabs.map((t, i) => (
             <div
               key={i}
               className={`pane-tab${i === props.activeTab ? " active" : ""}`}
-              title={t}
+              title={t.path}
               onMouseDown={(e) => {
-                if (e.button === 1) {
+                if (e.button === 2) {
+                  e.preventDefault();
+                } else if (e.button === 1) {
                   e.preventDefault();
                   props.onTabClose(i);
                 } else {
                   props.onTabSelect(i);
                 }
               }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                props.onTabContext(i, e.clientX, e.clientY);
+              }}
             >
-              <span className="pane-tab-label">{tabLabel(t)}</span>
-              <span
-                className="pane-tab-close"
-                title="Close tab"
-                onMouseDown={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  props.onTabClose(i);
-                }}
-              >
-                ×
+              <span className="pane-tab-label">
+                {t.locked ? "*" : ""}
+                {tabLabel(t.locked && t.lockedPath ? t.lockedPath : t.path)}
               </span>
             </div>
           ))}

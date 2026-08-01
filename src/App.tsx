@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { FilePane, isRoot, splitExt, type Entry, type SortKey } from "./FilePane";
+import { FilePane, isRoot, splitExt, type Entry, type PaneTab, type SortKey } from "./FilePane";
 import { Settings } from "./Settings";
 import { Lister } from "./Lister";
 import { UpdateChecker } from "./UpdateChecker";
@@ -12,23 +12,60 @@ type Dialog = { type: "mkdir" } | { type: "delete"; items: Entry[] };
 type PaneState = {
   sortKey?: SortKey;
   sortAsc?: boolean;
-  tabs?: string[];
+  tabs?: PaneTab[];
   activeTab?: number;
 };
 
+type TabContextMenu = {
+  side: Side;
+  index: number;
+  x: number;
+  y: number;
+};
+
 const sortKeys: SortKey[] = ["name", "ext", "size", "date"];
+
+function tabTarget(tab: PaneTab): string {
+  return tab.locked && tab.lockedPath ? tab.lockedPath : tab.path;
+}
+
+function readTabs(value: unknown): PaneTab[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.flatMap((tab): PaneTab[] => {
+    if (typeof tab === "string" && tab.length > 0) return [{ path: tab, locked: false }];
+    if (!tab || typeof tab !== "object") return [];
+    const saved = tab as Record<string, unknown>;
+    const locked = saved.locked === true;
+    return typeof saved.path === "string" && saved.path.length > 0
+      ? [
+          {
+            path: saved.path,
+            locked,
+            lockedPath:
+              locked && typeof saved.lockedPath === "string" && saved.lockedPath.length > 0
+                ? saved.lockedPath
+                : undefined,
+          },
+        ]
+      : [];
+  });
+}
 
 function readPaneState(storageKey: string): PaneState {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(storageKey) ?? "null");
     if (!value || typeof value !== "object") return {};
     const saved = value as Record<string, unknown>;
+    const tabs = readTabs(saved.tabs);
+    // Before tabs became explicit, the app persisted one automatic tab on startup.
+    const legacySingleTab =
+      Array.isArray(saved.tabs) &&
+      saved.tabs.length === 1 &&
+      typeof saved.tabs[0] === "string";
     return {
       sortKey: sortKeys.includes(saved.sortKey as SortKey) ? (saved.sortKey as SortKey) : undefined,
       sortAsc: typeof saved.sortAsc === "boolean" ? saved.sortAsc : undefined,
-      tabs: Array.isArray(saved.tabs)
-        ? saved.tabs.filter((tab): tab is string => typeof tab === "string" && tab.length > 0)
-        : undefined,
+      tabs: legacySingleTab ? [] : tabs,
       activeTab:
         typeof saved.activeTab === "number" && Number.isInteger(saved.activeTab)
           ? Math.max(0, saved.activeTab)
@@ -86,7 +123,7 @@ function usePane(showHidden: boolean, storageKey: string) {
   const [editing, setEditing] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>(persisted.sortKey ?? "name");
   const [sortAsc, setSortAsc] = useState(persisted.sortAsc ?? true);
-  const [tabs, setTabs] = useState<string[]>(persisted.tabs ?? []);
+  const [tabs, setTabs] = useState<PaneTab[]>(persisted.tabs ?? []);
   const [activeTab, setActiveTab] = useState(() =>
     Math.min(persisted.activeTab ?? 0, Math.max((persisted.tabs?.length ?? 1) - 1, 0)),
   );
@@ -116,10 +153,10 @@ function usePane(showHidden: boolean, storageKey: string) {
       }
       // Keep the active tab pointed at the folder we just navigated to.
       setTabs((t) => {
-        if (t.length === 0) return [target];
-        if (t[activeTabRef.current] === target) return t;
+        if (t.length === 0) return t;
+        if (t[activeTabRef.current]?.path === target) return t;
         const n = [...t];
-        n[activeTabRef.current] = target;
+        n[activeTabRef.current] = { ...n[activeTabRef.current], path: target };
         return n;
       });
     },
@@ -136,13 +173,14 @@ function usePane(showHidden: boolean, storageKey: string) {
 
   // Ctrl+T: duplicate the current folder into a new tab right after the current one.
   const newTab = () => {
-    const dup = path;
+    const dup: PaneTab = { path, locked: false };
     setTabs((t) => {
-      const base = t.length ? t : [path];
+      if (t.length === 0) return [dup];
+      const base = t;
       const idx = Math.min(activeTab, base.length - 1);
       return [...base.slice(0, idx + 1), dup, ...base.slice(idx + 1)];
     });
-    const next = activeTab + 1;
+    const next = tabs.length === 0 ? 0 : activeTab + 1;
     activeTabRef.current = next;
     setActiveTab(next);
   };
@@ -151,11 +189,11 @@ function usePane(showHidden: boolean, storageKey: string) {
     if (i === activeTab || i < 0 || i >= tabs.length) return;
     activeTabRef.current = i;
     setActiveTab(i);
-    load(tabs[i]);
+    load(tabTarget(tabs[i]));
   };
 
   const closeTab = (i: number) => {
-    if (tabs.length <= 1) return;
+    if (i < 0 || i >= tabs.length || tabs[i]?.locked) return;
     const next = tabs.filter((_, j) => j !== i);
     setTabs(next);
     let na = activeTab;
@@ -163,14 +201,34 @@ function usePane(showHidden: boolean, storageKey: string) {
     else if (i === activeTab) na = Math.min(activeTab, next.length - 1);
     activeTabRef.current = na;
     setActiveTab(na);
-    if (i === activeTab) load(next[na]);
+    if (i === activeTab && next.length > 0) load(tabTarget(next[na]));
+  };
+
+  const toggleTabLock = (i: number) => {
+    if (i < 0 || i >= tabs.length) return;
+    setTabs((t) =>
+      t.map((tab, index) => {
+        if (index !== i) return tab;
+        return tab.locked
+          ? { path: tab.path, locked: false }
+          : { ...tab, locked: true, lockedPath: tab.path };
+      }),
+    );
+  };
+
+  const insertTab = (tab: PaneTab) => {
+    const next = Math.min(activeTab + 1, tabs.length);
+    setTabs((t) => [...t.slice(0, next), { ...tab }, ...t.slice(next)]);
+    activeTabRef.current = next;
+    setActiveTab(next);
+    load(tab.path);
   };
 
   return {
     drive, setDrive, path, setPath, entries,
     cursor, setCursor, marked, setMarked, error, setError,
     editing, setEditing, sortKey, sortAsc, toggleSort, load,
-    tabs, activeTab, newTab, switchTab, closeTab,
+    tabs, activeTab, newTab, switchTab, closeTab, toggleTabLock, insertTab,
   };
 }
 
@@ -184,6 +242,7 @@ function App() {
   const [view, setView] = useState<"files" | "settings">("files");
   const [showUpdates, setShowUpdates] = useState(false);
   const [dialog, setDialog] = useState<Dialog | null>(null);
+  const [tabMenu, setTabMenu] = useState<TabContextMenu | null>(null);
   const [lister, setLister] = useState<{ name: string; content: string } | null>(null);
   const [cmd, setCmd] = useState("");
   const [history, setHistory] = useState<string[]>(() => {
@@ -210,7 +269,10 @@ function App() {
   useEffect(() => {
     if (drives.length && !inited.current) {
       inited.current = true;
-      const initialPath = (pane: Pane) => pane.tabs[pane.activeTab] || drives[0];
+      const initialPath = (pane: Pane) => {
+        const tab = pane.tabs[pane.activeTab];
+        return tab ? tabTarget(tab) : drives[0];
+      };
       left.setDrive(drives[0]);
       left.load(initialPath(left));
       right.setDrive(drives[0]);
@@ -230,6 +292,35 @@ function App() {
   const paneFor = (side: Side) => (side === "left" ? left : right);
   const active = paneFor(activeSide);
   const other = paneFor(activeSide === "left" ? "right" : "left");
+
+  const openTabMenu = (side: Side, index: number, x: number, y: number) => {
+    setActiveSide(side);
+    setTabMenu({ side, index, x, y });
+  };
+
+  const toggleTabLockFromMenu = () => {
+    if (!tabMenu) return;
+    const { side, index } = tabMenu;
+    setTabMenu(null);
+    paneFor(side).toggleTabLock(index);
+  };
+
+  const copyTabToOtherPanel = () => {
+    if (!tabMenu) return;
+    const { side, index } = tabMenu;
+    const sourceTab = paneFor(side).tabs[index];
+    setTabMenu(null);
+    if (!sourceTab) return;
+    const targetSide = side === "left" ? "right" : "left";
+    paneFor(targetSide).insertTab(sourceTab);
+  };
+
+  const closeTabFromMenu = () => {
+    if (!tabMenu) return;
+    const { side, index } = tabMenu;
+    setTabMenu(null);
+    paneFor(side).closeTab(index);
+  };
 
   const hasUp = (pane: Pane) => !isRoot(pane.path);
   const rowToEntry = (pane: Pane, row: number): Entry | null => {
@@ -374,14 +465,19 @@ function App() {
 
   const ks = useRef<any>(null);
   ks.current = {
-    activeSide, active, dialog, showUpdates, lister, view, alert,
-    setActiveSide, setDialog, setLister, setAlert, goUp, openRow, viewFile, editFile, doTransfer, askDelete, exitApp,
+    activeSide, active, dialog, tabMenu, showUpdates, lister, view, alert,
+    setActiveSide, setDialog, setTabMenu, setLister, setAlert, goUp, openRow, viewFile, editFile, doTransfer, askDelete, exitApp,
     hasUp, maxRow,
   };
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const s = ks.current;
+      if (s.tabMenu) {
+        e.preventDefault();
+        s.setTabMenu(null);
+        return;
+      }
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
       if (e.key === "Escape" && s.lister) {
@@ -467,6 +563,17 @@ function App() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  useEffect(() => {
+    if (!tabMenu) return;
+    const close = () => setTabMenu(null);
+    window.addEventListener("mousedown", close);
+    window.addEventListener("blur", close);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("blur", close);
+    };
+  }, [tabMenu]);
+
   const renderPane = (side: Side) => {
     const pane = paneFor(side);
     return (
@@ -485,6 +592,7 @@ function App() {
         onSort={pane.toggleSort}
         tabs={pane.tabs}
         activeTab={pane.activeTab}
+        onTabContext={(i, x, y) => openTabMenu(side, i, x, y)}
         onTabSelect={(i) => {
           setActiveSide(side);
           pane.switchTab(i);
@@ -513,8 +621,16 @@ function App() {
     );
   };
 
+  const tabMenuTab = tabMenu ? paneFor(tabMenu.side).tabs[tabMenu.index] : null;
+  const tabMenuStyle = tabMenu
+    ? {
+        left: Math.max(4, Math.min(tabMenu.x, window.innerWidth - 196)),
+        top: Math.max(4, Math.min(tabMenu.y, window.innerHeight - 124)),
+      }
+    : undefined;
+
   return (
-    <div className="app">
+    <div className="app" onContextMenuCapture={(e) => e.preventDefault()}>
       <header className="app-header">
         <h1>Tauri Commander</h1>
         <div className="app-header-actions">
@@ -596,6 +712,25 @@ function App() {
             <button type="button" onClick={exitApp}>F10 Exit</button>
           </div>
         </>
+      )}
+
+      {tabMenu && tabMenuTab && (
+        <div
+          className="tab-context-menu"
+          style={tabMenuStyle}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button type="button" onClick={toggleTabLockFromMenu}>
+            {tabMenuTab.locked ? "Unlock" : "Lock"}
+          </button>
+          <button type="button" onClick={copyTabToOtherPanel}>
+            Copy to other panel
+          </button>
+          <button type="button" disabled={tabMenuTab.locked} onClick={closeTabFromMenu}>
+            Close
+          </button>
+        </div>
       )}
 
       {dialog?.type === "mkdir" && (
