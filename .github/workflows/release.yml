@@ -7,7 +7,7 @@ name: Build & Release
 on:
   push:
     tags:
-      - 'v*'
+      - '*'
 
 permissions:
   contents: write
@@ -81,7 +81,7 @@ jobs:
         with:
           args: ${{ matrix.args }}
           tagName: ${{ github.ref_name }}
-          releaseName: 'Tauri Commander ${{ github.ref_name }}'
+          releaseName: '${{ github.ref_name }}'
           releaseBody: 'See the assets below for the installer and updater files for your platform.'
           releaseDraft: false
           uploadUpdaterJson: true

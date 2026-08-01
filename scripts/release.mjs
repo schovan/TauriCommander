@@ -46,9 +46,9 @@ execFileSync("cargo", ["update", "-p", "TauriCommander", "--precise", version], 
 
 const git = (...args) => execFileSync("git", args, { cwd: root, stdio: "inherit" });
 
-console.log(`Committing and tagging v${version}`);
-git("commit", "-am", `Release v${version}`);
-git("tag", `v${version}`);
+console.log(`Committing and tagging ${version}`);
+git("commit", "-am", `Release ${version}`);
+git("tag", `${version}`);
 git("push", "origin", "HEAD", "--tags");
 
-console.log(`\nDone. Commit and tag v${version} pushed — CI will build and publish the release.`);
+console.log(`\nDone. Commit and tag ${version} pushed — CI will build and publish the release.`);
