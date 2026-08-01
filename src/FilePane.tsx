@@ -66,6 +66,7 @@ interface Props {
   sortKey: SortKey;
   sortAsc: boolean;
   onSort: (key: SortKey) => void;
+  showExtensions: boolean;
   tabs: PaneTab[];
   activeTab: number;
   onTabSelect: (index: number) => void;
@@ -214,6 +215,7 @@ export function FilePane(props: Props) {
           const isCursor = props.cursor === row;
           const isMarked = props.marked.has(entry.path);
           const { base, ext } = splitExt(entry.name, entry.is_dir);
+          const displayName = props.showExtensions ? entry.name : base;
           return (
             <div
               key={entry.path}
@@ -231,9 +233,9 @@ export function FilePane(props: Props) {
                   {entry.is_dir ? "📁" : "📄"}
                   {entry.system && <span className="entry-sys">!</span>}
                 </span>{" "}
-                {base}
+                {displayName}
               </span>
-              <span className="col-ext">{ext}</span>
+              <span className="col-ext">{props.showExtensions ? "" : ext}</span>
               <span className="col-size">{entry.is_dir ? "<DIR>" : formatSize(entry.size)}</span>
               <span className="col-date">{formatDate(entry.modified)}</span>
             </div>

@@ -8,7 +8,11 @@ import { UpdateChecker } from "./UpdateChecker";
 import "./App.css";
 
 type Side = "left" | "right";
-type Dialog = { type: "mkdir" } | { type: "delete"; items: Entry[] };
+type Dialog =
+  | { type: "mkdir" }
+  | { type: "delete"; items: Entry[] }
+  | { type: "select" }
+  | { type: "deselect" };
 type PaneState = {
   sortKey?: SortKey;
   sortAsc?: boolean;
@@ -94,8 +98,31 @@ function sortEntries(entries: Entry[], key: SortKey, asc: boolean): Entry[] {
   return [...dirs, ...files];
 }
 
+function wildcardToRegex(mask: string): RegExp {
+  let pattern = "^";
+  for (const char of mask) {
+    if (char === "*") pattern += ".*";
+    else if (char === "?") pattern += ".";
+    else pattern += char.replace(/[\\^$+{}()[\]|.]/g, "\\$&");
+  }
+  return new RegExp(`${pattern}$`, "i");
+}
+
+function matchesMask(name: string, mask: string): boolean {
+  const masks = mask
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!masks.length) return false;
+  // Windows treats *.* as matching names both with and without an extension.
+  return masks.some((part) => part === "*.*" || wildcardToRegex(part).test(name));
+}
+
 function useSettings() {
   const [showHidden, setShowHidden] = useState(() => localStorage.getItem("showHidden") === "1");
+  const [showExtensions, setShowExtensions] = useState(
+    () => localStorage.getItem("showExtensions") === "1",
+  );
   const [editorPath, setEditorPath] = useState(() => localStorage.getItem("editorPath") ?? "");
   const [startMaximized, setStartMaximized] = useState(
     () => localStorage.getItem("startMaximized") === "1",
@@ -104,12 +131,24 @@ function useSettings() {
     localStorage.setItem("showHidden", showHidden ? "1" : "0");
   }, [showHidden]);
   useEffect(() => {
+    localStorage.setItem("showExtensions", showExtensions ? "1" : "0");
+  }, [showExtensions]);
+  useEffect(() => {
     localStorage.setItem("editorPath", editorPath);
   }, [editorPath]);
   useEffect(() => {
     localStorage.setItem("startMaximized", startMaximized ? "1" : "0");
   }, [startMaximized]);
-  return { showHidden, setShowHidden, editorPath, setEditorPath, startMaximized, setStartMaximized };
+  return {
+    showHidden,
+    setShowHidden,
+    showExtensions,
+    setShowExtensions,
+    editorPath,
+    setEditorPath,
+    startMaximized,
+    setStartMaximized,
+  };
 }
 
 function usePane(showHidden: boolean, storageKey: string) {
@@ -236,7 +275,7 @@ type Pane = ReturnType<typeof usePane>;
 
 function App() {
   const settings = useSettings();
-  const { showHidden, editorPath } = settings;
+  const { showHidden, showExtensions, editorPath } = settings;
   const [drives, setDrives] = useState<string[]>([]);
   const [activeSide, setActiveSide] = useState<Side>("left");
   const [view, setView] = useState<"files" | "settings">("files");
@@ -390,6 +429,30 @@ function App() {
     if (items.length) setDialog({ type: "delete", items });
   };
 
+  const selectByMask = (mask: string) => {
+    const selectionMask = mask.trim() || "*.*";
+    active.setMarked((current) => {
+      const next = new Set(current);
+      for (const entry of active.entries) {
+        if (matchesMask(entry.name, selectionMask)) next.add(entry.path);
+      }
+      return next;
+    });
+    setDialog(null);
+  };
+
+  const deselectByMask = (mask: string) => {
+    const selectionMask = mask.trim() || "*.*";
+    active.setMarked((current) => {
+      const next = new Set(current);
+      for (const entry of active.entries) {
+        if (matchesMask(entry.name, selectionMask)) next.delete(entry.path);
+      }
+      return next;
+    });
+    setDialog(null);
+  };
+
   const doDelete = async (items: Entry[]) => {
     setDialog(null);
     try {
@@ -466,7 +529,7 @@ function App() {
   const ks = useRef<any>(null);
   ks.current = {
     activeSide, active, dialog, tabMenu, showUpdates, lister, view, alert,
-    setActiveSide, setDialog, setTabMenu, setLister, setAlert, goUp, openRow, viewFile, editFile, doTransfer, askDelete, exitApp,
+    setActiveSide, setDialog, setTabMenu, setLister, setAlert, goUp, openRow, viewFile, editFile, doTransfer, askDelete, selectByMask, deselectByMask, exitApp,
     hasUp, maxRow,
   };
 
@@ -492,6 +555,16 @@ function App() {
       }
       if (s.dialog || s.showUpdates || s.lister || s.alert || s.view !== "files") return;
       const pane = s.active;
+      if (!e.ctrlKey && !e.altKey && !e.metaKey && (e.code === "NumpadAdd" || e.key === "+")) {
+        e.preventDefault();
+        s.setDialog({ type: "select" });
+        return;
+      }
+      if (!e.ctrlKey && !e.altKey && !e.metaKey && (e.code === "NumpadSubtract" || e.key === "-")) {
+        e.preventDefault();
+        s.setDialog({ type: "deselect" });
+        return;
+      }
       if (e.ctrlKey && (e.key === "t" || e.key === "T")) {
         e.preventDefault();
         pane.newTab();
@@ -590,6 +663,7 @@ function App() {
         sortKey={pane.sortKey}
         sortAsc={pane.sortAsc}
         onSort={pane.toggleSort}
+        showExtensions={showExtensions}
         tabs={pane.tabs}
         activeTab={pane.activeTab}
         onTabContext={(i, x, y) => openTabMenu(side, i, x, y)}
@@ -736,6 +810,12 @@ function App() {
       {dialog?.type === "mkdir" && (
         <MkdirDialog onSubmit={doMkdir} onCancel={() => setDialog(null)} />
       )}
+      {dialog?.type === "select" && (
+        <SelectMaskDialog action="select" onSubmit={selectByMask} onCancel={() => setDialog(null)} />
+      )}
+      {dialog?.type === "deselect" && (
+        <SelectMaskDialog action="deselect" onSubmit={deselectByMask} onCancel={() => setDialog(null)} />
+      )}
       {dialog?.type === "delete" && (
         <ConfirmDialog
           count={dialog.items.length}
@@ -782,6 +862,64 @@ function MkdirDialog({ onSubmit, onCancel }: { onSubmit: (name: string) => void;
         <div className="update-footer">
           <button type="button" className="update-primary" onClick={() => onSubmit(ref.current?.value ?? "")}>
             Create
+          </button>
+          <button type="button" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SelectMaskDialog({
+  action,
+  onSubmit,
+  onCancel,
+}: {
+  action: "select" | "deselect";
+  onSubmit: (mask: string) => void;
+  onCancel: () => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [mask, setMask] = useState("*.*");
+  const deselect = action === "deselect";
+
+  useEffect(() => {
+    ref.current?.focus();
+    ref.current?.select();
+  }, []);
+
+  return (
+    <div className="update-overlay" onClick={onCancel}>
+      <div className="update-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="update-header">
+          <h3>{deselect ? "Unselect group" : "Select group"}</h3>
+        </div>
+        <div className="update-body">
+          <label className="dialog-label" htmlFor="select-mask">
+            File mask
+          </label>
+          <input
+            ref={ref}
+            id="select-mask"
+            className="dialog-input"
+            value={mask}
+            onChange={(e) => setMask(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onSubmit(mask);
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                onCancel();
+              }
+            }}
+          />
+        </div>
+        <div className="update-footer">
+          <button type="button" className="update-primary" onClick={() => onSubmit(mask)}>
+            {deselect ? "Unselect" : "Select"}
           </button>
           <button type="button" onClick={onCancel}>
             Cancel

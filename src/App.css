@@ -428,6 +428,11 @@ select {
   color: #0f0f0f;
 }
 
+.dialog-label {
+  align-self: flex-start;
+  font-weight: 500;
+}
+
 
 /* ---- Update modal ---- */
 

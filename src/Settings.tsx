@@ -3,6 +3,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 interface Props {
   showHidden: boolean;
   setShowHidden: (value: boolean) => void;
+  showExtensions: boolean;
+  setShowExtensions: (value: boolean) => void;
   editorPath: string;
   setEditorPath: (value: string) => void;
   startMaximized: boolean;
@@ -13,6 +15,8 @@ interface Props {
 export function Settings({
   showHidden,
   setShowHidden,
+  showExtensions,
+  setShowExtensions,
   editorPath,
   setEditorPath,
   startMaximized,
@@ -38,6 +42,17 @@ export function Settings({
             onChange={(e) => setShowHidden(e.target.checked)}
           />
           Show hidden / system files
+        </label>
+      </div>
+
+      <div className="settings-row">
+        <label className="settings-check">
+          <input
+            type="checkbox"
+            checked={showExtensions}
+            onChange={(e) => setShowExtensions(e.target.checked)}
+          />
+          Show file extensions directly after file name
         </label>
       </div>
 
