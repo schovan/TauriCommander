@@ -14,10 +14,17 @@ After installing the Android SDK, run the tracked mobile project with:
 bun tauri android dev
 ```
 
-To build an APK:
+To build the small, installable arm64 release APK:
 
 ```sh
-bun tauri android build --debug --apk
+bun run android:apk
 ```
+
+Release builds use the standard Android debug certificate when no
+`src-tauri/gen/android/keystore.properties` file is present. For public
+distribution, provide a private release keystore through that ignored file.
+The GitHub release workflow accepts `ANDROID_KEYSTORE_BASE64`,
+`ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, and
+`ANDROID_KEYSTORE_PASSWORD` secrets for this purpose.
 
 The first launch asks for Android storage access so the file panes can browse shared storage.

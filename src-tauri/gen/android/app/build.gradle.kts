@@ -13,9 +13,40 @@ val tauriProperties = Properties().apply {
     }
 }
 
+val releaseKeystorePropertiesFile = rootProject.file("keystore.properties")
+val releaseKeystoreProperties = Properties().apply {
+    if (releaseKeystorePropertiesFile.exists()) {
+        releaseKeystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+
 android {
     compileSdk = 36
     namespace = "com.schov.tauri_commander"
+    signingConfigs {
+        create("release") {
+            if (releaseKeystorePropertiesFile.exists()) {
+                val storeFilePath = releaseKeystoreProperties["storeFile"]?.toString()
+                    ?: error("keystore.properties must define storeFile")
+                val alias = releaseKeystoreProperties["keyAlias"]?.toString()
+                    ?: error("keystore.properties must define keyAlias")
+                val password = releaseKeystoreProperties["password"]?.toString()
+                val keyPassword = releaseKeystoreProperties["keyPassword"]?.toString() ?: password
+                    ?: error("keystore.properties must define password or keyPassword")
+                val storePassword = releaseKeystoreProperties["storePassword"]?.toString() ?: password
+                    ?: error("keystore.properties must define password or storePassword")
+
+                keyAlias = alias
+                this.keyPassword = keyPassword
+                storeFile = file(storeFilePath)
+                this.storePassword = storePassword
+            } else {
+                // Keep local release APKs installable without committing a private key.
+                // CI/distribution builds should provide src-tauri/gen/android/keystore.properties.
+                initWith(getByName("debug"))
+            }
+        }
+    }
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
         applicationId = "com.schov.tauri_commander"
@@ -38,6 +69,8 @@ android {
         }
         getByName("release") {
             isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }
                     .plus(getDefaultProguardFile("proguard-android-optimize.txt"))

@@ -147,13 +147,35 @@ jobs:
       - name: TypeScript typecheck
         run: bun run tsc --noEmit
 
-      - name: Build and publish Android debug APK
+      - name: Configure Android release signing
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "No Android release keystore configured; using the debug certificate."
+            exit 0
+          fi
+
+          keystore_path="$RUNNER_TEMP/tauri-commander-release.jks"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          {
+            echo "keyAlias=$ANDROID_KEY_ALIAS"
+            echo "keyPassword=$ANDROID_KEY_PASSWORD"
+            echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
+            echo "storeFile=$keystore_path"
+          } > src-tauri/gen/android/keystore.properties
+
+      - name: Build and publish Android arm64 release APK
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           mobile: android
-          args: '--debug --apk'
+          args: '--apk --target aarch64'
           tagName: ${{ github.ref_name }}
           releaseName: '${{ github.ref_name }}'
           releaseBody: 'See the assets below for the installer and updater files for your platform.'
