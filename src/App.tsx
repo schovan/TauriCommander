@@ -5,6 +5,7 @@ import { FilePane, isRoot, splitExt, type Entry, type PaneTab, type SortKey } fr
 import { Settings } from "./Settings";
 import { Lister } from "./Lister";
 import { UpdateChecker } from "./UpdateChecker";
+import { openPath } from "@tauri-apps/plugin-opener";
 import "./App.css";
 
 type Side = "left" | "right";
@@ -28,6 +29,8 @@ type TabContextMenu = {
 };
 
 const sortKeys: SortKey[] = ["name", "ext", "size", "date"];
+const isMobilePlatform =
+  typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 function tabTarget(tab: PaneTab): string {
   return tab.locked && tab.lockedPath ? tab.lockedPath : tab.path;
@@ -324,11 +327,23 @@ function App() {
   const inited = useRef(false);
 
   useEffect(() => {
-    invoke<string[]>("list_drives").then(setDrives).catch(() => setDrives([]));
+    const refreshDrives = (reset = false) => {
+      if (reset) inited.current = false;
+      invoke<string[]>("list_drives").then(setDrives).catch(() => setDrives([]));
+    };
+    refreshDrives();
     if (settings.startMaximized) {
       getCurrentWindow().maximize().catch(() => {});
     }
+
+    // Android opens the system all-files-access screen before the webview is
+    // ready. Refresh the drive list when the user returns after granting it.
+    const onVisible = () => {
+      if (isMobilePlatform && document.visibilityState === "visible") refreshDrives(true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
   useEffect(() => {
@@ -414,7 +429,10 @@ function App() {
     const e = rowToEntry(pane, row);
     if (!e) return;
     if (e.is_dir) pane.load(e.path);
-    else await invoke("open_path", { path: e.path }).catch((err) => pane.setError(String(err)));
+    else {
+      const open = isMobilePlatform ? openPath(e.path) : invoke("open_path", { path: e.path });
+      await open.catch((err) => pane.setError(String(err)));
+    }
   };
 
   const viewFile = async () => {
@@ -431,9 +449,10 @@ function App() {
   const editFile = async () => {
     const e = rowToEntry(active, active.cursor);
     if (!e || e.is_dir) return;
-    await invoke("edit_file", { path: e.path, editor: editorPath || null }).catch((err) =>
-      active.setError(String(err)),
-    );
+    const edit = isMobilePlatform
+      ? openPath(e.path, editorPath || undefined)
+      : invoke("edit_file", { path: e.path, editor: editorPath || null });
+    await edit.catch((err) => active.setError(String(err)));
   };
 
   const doTransfer = async (move: boolean) => {
@@ -737,9 +756,11 @@ function App() {
           <button type="button" onClick={() => setView(view === "files" ? "settings" : "files")}>
             {view === "files" ? "⚙ Settings" : "← Files"}
           </button>
-          <button type="button" onClick={() => setShowUpdates(true)}>
-            Check for updates
-          </button>
+          {!isMobilePlatform && (
+            <button type="button" onClick={() => setShowUpdates(true)}>
+              Check for updates
+            </button>
+          )}
         </div>
       </header>
 
@@ -858,7 +879,7 @@ function App() {
         <MessageDialog title={alert.title} message={alert.message} onClose={() => setAlert(null)} />
       )}
 
-      {showUpdates && <UpdateChecker onClose={() => setShowUpdates(false)} />}
+      {showUpdates && !isMobilePlatform && <UpdateChecker onClose={() => setShowUpdates(false)} />}
     </div>
   );
 }

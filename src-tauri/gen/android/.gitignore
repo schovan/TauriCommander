@@ -1,0 +1,24 @@
+# Android Studio / IntelliJ project metadata
+*.iml
+.idea/
+
+# Gradle caches and build output
+.gradle/
+**/build/
+
+# Native build output
+.externalNativeBuild/
+.cxx/
+
+# Local Android configuration and captures
+local.properties
+captures/
+.DS_Store
+
+# Local signing files
+key.properties
+keystore.properties
+
+# Tauri-generated Gradle integration
+.tauri/
+tauri.settings.gradle

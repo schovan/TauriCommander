@@ -38,6 +38,11 @@ fn list_drives() -> Vec<String> {
             drives.push(root);
         }
     }
+    #[cfg(target_os = "android")]
+    if drives.is_empty() && Path::new("/storage/emulated/0").exists() {
+        drives.push("/storage/emulated/0".to_string());
+    }
+
     // Fallback for non-Windows platforms so the app still shows a root.
     if drives.is_empty() {
         drives.push("/".to_string());
