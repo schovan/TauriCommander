@@ -123,7 +123,7 @@ jobs:
       - name: Install Rust stable with Android targets
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+          targets: aarch64-linux-android
 
       - name: Cache Rust and Gradle dependencies
         uses: actions/cache@v4
@@ -156,7 +156,19 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
-            echo "No Android release keystore configured; using the debug certificate."
+            echo "No Android release keystore configured; creating the standard debug certificate."
+            mkdir -p "$HOME/.config/.android"
+            if [ ! -f "$HOME/.config/.android/debug.keystore" ]; then
+              keytool -genkeypair -v \
+                -keystore "$HOME/.config/.android/debug.keystore" \
+                -storepass android \
+                -alias androiddebugkey \
+                -keypass android \
+                -keyalg RSA \
+                -keysize 2048 \
+                -validity 10000 \
+                -dname "CN=Android Debug,O=Android,C=US"
+            fi
             exit 0
           fi
 
