@@ -175,7 +175,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           mobile: android
-          args: '--apk --target aarch64'
+          args: '--apk --target aarch64 --split-per-abi'
           tagName: ${{ github.ref_name }}
           releaseName: '${{ github.ref_name }}'
           releaseBody: 'See the assets below for the installer and updater files for your platform.'

@@ -14,7 +14,7 @@ After installing the Android SDK, run the tracked mobile project with:
 bun tauri android dev
 ```
 
-To build the small, installable arm64 release APK:
+To build the small, installable arm64 release APK (`app-arm64-release.apk`):
 
 ```sh
 bun run android:apk
