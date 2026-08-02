@@ -8,7 +8,7 @@ export interface Entry {
   modified: number | null;
   hidden: boolean;
   system: boolean;
-  is_junction: boolean;
+  is_link: boolean;
 }
 
 export type SortKey = "name" | "ext" | "size" | "date";
@@ -226,7 +226,7 @@ export function FilePane(props: Props) {
               <span className="col-name">
                 <span className={`entry-icon${entry.hidden ? " dimmed" : ""}`}>
                   {entry.is_dir ? "📁" : "📄"}
-                  {entry.is_junction && (
+                  {entry.is_link && (
                     <span className="entry-link-arrow" title="Junction">
                       <svg viewBox="0 0 16 16" aria-hidden="true">
                         <rect x="0.5" y="0.5" width="15" height="15" rx="1" />

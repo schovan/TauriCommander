@@ -12,7 +12,7 @@ struct DirEntry {
     modified: Option<u64>,
     hidden: bool,
     system: bool,
-    is_junction: bool,
+    is_link: bool,
 }
 
 #[cfg(windows)]
@@ -54,19 +54,24 @@ fn read_dir(path: String, show_hidden: bool, show_system: bool) -> Result<Vec<Di
             Err(_) => continue,
         };
         let path = entry.path();
-        let meta = match entry.metadata() {
+        let link_meta = fs::symlink_metadata(&path).ok();
+        let meta = match fs::metadata(&path) {
             Ok(m) => m,
             Err(_) => continue,
         };
         let name = entry.file_name().to_string_lossy().into_owned();
 
         #[cfg(windows)]
-        let (hidden, system, is_junction) = match fs::symlink_metadata(&path) {
-            Ok(link_meta) => win_flags(&link_meta),
-            Err(_) => win_flags(&meta),
-        };
+        let (hidden, system, is_link) = win_flags(link_meta.as_ref().unwrap_or(&meta));
         #[cfg(not(windows))]
-        let (hidden, system, is_junction) = (name.starts_with('.'), false, false);
+        let (hidden, system, is_link) = (
+            name.starts_with('.'),
+            false,
+            link_meta
+                .as_ref()
+                .map(|m| m.file_type().is_symlink())
+                .unwrap_or(false),
+        );
 
         if !show_hidden && hidden {
             continue;
@@ -75,7 +80,7 @@ fn read_dir(path: String, show_hidden: bool, show_system: bool) -> Result<Vec<Di
             continue;
         }
 
-        let is_dir = meta.is_dir() || (is_junction && path.is_dir());
+        let is_dir = meta.is_dir();
         let modified = meta
             .modified()
             .ok()
@@ -89,7 +94,7 @@ fn read_dir(path: String, show_hidden: bool, show_system: bool) -> Result<Vec<Di
             modified,
             hidden,
             system,
-            is_junction,
+            is_link,
         });
     }
     entries.sort_by(|a, b| {
