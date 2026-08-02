@@ -16,7 +16,9 @@ open class BuildTask : DefaultTask() {
 
     @TaskAction
     fun assemble() {
-        val executable = """C:\Users\schov\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node""";
+        // Use the project's package manager from PATH instead of the absolute
+        // Node.js path captured by `tauri android init`.
+        val executable = """bun""";
         try {
             runTauriCli(executable)
         } catch (e: Exception) {
