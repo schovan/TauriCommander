@@ -8,13 +8,39 @@ import android.os.Bundle
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
+import android.view.View
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+    applySystemBarInsets()
     requestStorageAccess()
+  }
+
+  private fun applySystemBarInsets() {
+    val content = findViewById<View>(android.R.id.content) ?: return
+    val initialLeft = content.paddingLeft
+    val initialTop = content.paddingTop
+    val initialRight = content.paddingRight
+    val initialBottom = content.paddingBottom
+
+    ViewCompat.setOnApplyWindowInsetsListener(content) { view, insets ->
+      val bars = insets.getInsets(
+        WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+      )
+      view.setPadding(
+        initialLeft + bars.left,
+        initialTop + bars.top,
+        initialRight + bars.right,
+        initialBottom + bars.bottom,
+      )
+      insets
+    }
+    ViewCompat.requestApplyInsets(content)
   }
 
   private fun requestStorageAccess() {
